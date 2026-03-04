@@ -1,0 +1,133 @@
+# Lab 5: FIRST and FOLLOW Computation (Fully Corrected)
+# Compiler Design Laboratory
+
+
+from collections import defaultdict
+
+grammar = defaultdict(list)
+first = {}
+follow = {}
+non_terminals = set()
+terminals = set()
+
+# Function to check if symbol is terminal
+def is_terminal(symbol):
+    return symbol not in non_terminals and symbol != 'ε'
+
+# Compute FIRST set
+def compute_first(symbol):
+    if symbol in first:
+        return first[symbol]
+
+    first[symbol] = set()
+
+    # If terminal, FIRST is itself
+    if is_terminal(symbol):
+        first[symbol].add(symbol)
+        return first[symbol]
+
+    # For each production
+    for production in grammar[symbol]:
+        if production == 'ε':
+            first[symbol].add('ε')
+            continue
+
+        for char in production:
+            char_first = compute_first(char)
+            first[symbol].update(char_first - {'ε'})
+
+            if 'ε' not in char_first:
+                break
+        else:
+            first[symbol].add('ε')
+
+    return first[symbol]
+
+# Compute FOLLOW set
+def compute_follow(start_symbol):
+    for nt in non_terminals:
+        follow[nt] = set()
+
+    follow[start_symbol].add('$')  # End marker
+
+    changed = True
+    while changed:
+        changed = False
+        for lhs in grammar:
+            for production in grammar[lhs]:
+                for i in range(len(production)):
+                    symbol = production[i]
+
+                    if symbol in non_terminals:
+                        # Case 1: A -> αBβ
+                        if i + 1 < len(production):
+                            next_symbol = production[i + 1]
+                            next_first = compute_first(next_symbol)
+                            before = len(follow[symbol])
+
+                            follow[symbol].update(next_first - {'ε'})
+
+                            # Case 2: If FIRST(β) contains ε
+                            if 'ε' in next_first:
+                                follow[symbol].update(follow[lhs])
+
+                            if before != len(follow[symbol]):
+                                changed = True
+                        else:
+                            # Case 3: A -> αB
+                            before = len(follow[symbol])
+                            follow[symbol].update(follow[lhs])
+                            if before != len(follow[symbol]):
+                                changed = True
+
+# Input Section
+n = int(input("Enter number of productions: "))
+
+print("Enter productions in format A->aB|b (No spaces):")
+for _ in range(n):
+    prod = input().strip()
+    lhs, rhs = prod.split("->")
+
+    non_terminals.add(lhs)
+    alternatives = rhs.split("|")
+
+    for alt in alternatives:
+        grammar[lhs].append(alt)
+
+# Identify terminals
+for lhs in grammar:
+    for production in grammar[lhs]:
+        for symbol in production:
+            if symbol not in non_terminals and symbol != 'ε':
+                terminals.add(symbol)
+
+# Check for undefined non-terminals
+used_symbols = set()
+for lhs in grammar:
+    for production in grammar[lhs]:
+        for symbol in production:
+            if symbol.isupper():
+                used_symbols.add(symbol)
+
+undefined = used_symbols - non_terminals
+if undefined:
+    print("\n⚠ Warning: Undefined Non-terminals found:", ", ".join(undefined))
+    print("Please define all non-terminals for accurate results.\n")
+
+# Compute FIRST sets
+for nt in non_terminals:
+    compute_first(nt)
+
+# Compute FOLLOW sets
+start_symbol = list(grammar.keys())[0]
+compute_follow(start_symbol)
+
+# Output FIRST sets
+print("\nFIRST Sets:")
+for nt in sorted(non_terminals):
+    print(f"FIRST({nt}) = {{ {', '.join(sorted(first[nt]))} }}")
+
+# Output FOLLOW sets
+print("\nFOLLOW Sets:")
+for nt in sorted(non_terminals):
+    print(f"FOLLOW({nt}) = {{ {', '.join(sorted(follow[nt]))} }}")
